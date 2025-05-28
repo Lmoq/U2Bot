@@ -24,7 +24,7 @@ class tasktype:
 
 class U2_Device:
 
-    def __init__(self):
+    def __init__( self ):
 
         self.d = u2.connect()
         self.task = tasktype.t1
@@ -47,12 +47,15 @@ class U2_Device:
 
         # UiObject
         self.qui = None
+        
         # Bool
         self.running = True
+        self.restart = False
+
+        self.thread = None
 
 
     def waitElement( self, selector, timeout ):
-
         ui = self.d( **selector )
 
         return ui \
@@ -61,7 +64,7 @@ class U2_Device:
 
 
     def doTask1( self ):
-        
+        # Search task1 elements
         try:
             if self.qui != None:
                 
@@ -70,7 +73,7 @@ class U2_Device:
 
                 if not gone:
                     boxArea( self.qui.info['bounds'] )
-                    print(f"Last qui persisted\n{self.qui.info}")
+                    printf(f"Last qui persisted\n{self.qui.info}")
                     running = False
 
                     return
@@ -78,10 +81,10 @@ class U2_Device:
         except Exception as e:
             print("WaitObject out of visibility\n")        
 
-        # Search elements in order 
         print(f"Finding question")
         
         ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=60 )
+        
         if not ui:
             print("Find element timedout\n")
             return
@@ -93,13 +96,13 @@ class U2_Device:
             return
 
         text = self.task1[info['text']]
-        print(f"Found question for:{text}\nQuestion:{ui.info['text']}")
+        print(f"Found question for[ {text} ]\nQuestion:{ui.info['text']}")
         
         start = time.time()
         ui = self.waitElement( {"text" : text, "className" : wtype.clickable}, timeout=4 )
         
         if not ui:
-            print(f"Clickable not found:{text}\n")
+            print(f"Clickable not found[ {text} ]\n")
             return
 
         info = ui.info
@@ -114,7 +117,7 @@ class U2_Device:
         #boxArea( bounds )   
         adbClick( bounds )
 
-        printf(f"Clicked[{text}] in {time.time()-start:.2f}secs\n")
+        printf(f"Clicked[ {text} ]")
         
         # Update task values
         self.prev_task = self.task
@@ -125,13 +128,13 @@ class U2_Device:
 
 
     def doTask2( self ):
-        # Search elements
+        # Search task2 elements
         try:
             print(f"Finding {self.task2} clickable")
-            cui = self.waitElement( {"text" : self.task2, "className" : wtype.clickable }, timeout=40 ) 
+            cui = self.waitElement( {"text" : self.task2, "className" : wtype.clickable }, timeout=60 ) 
             
             if not cui:
-                print(f"[{self.task2}] timedout")
+                printf(f"[ {self.task2} ] timedout")
                 return
 
         except Exception:
@@ -139,6 +142,7 @@ class U2_Device:
             time.sleep(2)
 
         info = cui.info
+
         bounds = info['bounds']
         self.check = info['text']
 
@@ -147,12 +151,13 @@ class U2_Device:
 
         if self.check != self.task2:
             print(f"Wrong element found[{self.check}]\n")
+            cui = None
             return
         
         # Click and update values
         #boxArea( bounds )
         adbClick( bounds )
-        printf(f"Clicked[{self.check}]")
+        printf(f"Clicked[ {self.check} ]")
 
         # Update task values
         self.prev_task = self.task
@@ -163,10 +168,11 @@ class U2_Device:
 
 
     def doCheck( self ):
-
-        ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=10 )
+        # Wait for ui to exists before switching task        
+        ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=20 )
+        
         if not ui:
-            print("Check element not found\nSwitched to prev_task")
+            printf("Check element not found[ {self.check} ]\nSwitched to task{self.prev_task}")
             self.task = self.prev_task
             return
 
@@ -174,12 +180,12 @@ class U2_Device:
         if self.prev_task == 1:
             self.qui = ui
 
-        print(f"Checked[{self.check}]\nCurrentTask:{self.next_task}\n")
+        printf(f"Checked[ {self.check} ]\n")
         self.task = self.next_task
 
 
     def pipethread( self ):
-
+        # Reads from pipe controlled by termux-notification
         while True:
             print("Receiving pipe")
 
@@ -187,19 +193,14 @@ class U2_Device:
                 "cat", "/data/data/com.termux/files/home/pipes/pipe"],
                 stdout=subprocess.PIPE
             )
-            string = result.stdout.decode().strip('\n')
+            string = result.stdout.decode().strip()
 
             if string == '-1':
                 print("Received ping")
-                self.running = False
                 break
 
 
     def mainloop( self ):
-
-        # Run termux-notification with default args
-        notif()
-
         while self.running:
             #if d.device_info.get('package') != 'com.facebook.orca':
                 #continue
@@ -223,19 +224,25 @@ class U2_Device:
                 time.sleep(2)
 
 
-    def run( self ):
-
+    def start( self ):
+        # Start main program
         pipe_t = Thread(target = self.pipethread)
         pipe_t.start()
 
-        mainloop_t = Thread(target=self.mainloop, daemon=True)
-        mainloop_t.start()
+        self.thread = Thread(target=self.mainloop, daemon=True)
+        self.thread.start()
 
         # Clean up external processes
-        print("Mainloop exits")
+        print("Mainloop started")
         pipe_t.join()
 
+    def run( self ):
+        # Run termux-notification with default args
+        notif()
+
+        self.start() 
         print("Closing notif")
+
         os.system("termux-notification-remove 21")
 
 if __name__=='__main__':

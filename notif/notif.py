@@ -9,7 +9,7 @@ def termux_notif( follow_default=True, **kwargs ):
             "--title"   : "'U2 Running'",
             "--button1" : "'Exit'",
             "--button1-action" : "'echo -1 > ~/pipes/pipe'",
-            "--priority" : "'HIGH'",
+            "--priority" : "'high'",
             "-c"         : "'Log details'"
         }
         dict_.update(kwargs)
@@ -63,7 +63,7 @@ if __name__=='__main__':
     notif(
         content="'Debug logs'",
         title = "Lmao",
-        img = path
+        b1_action = "'termux-notification-removeb21'"
     )
 
 
