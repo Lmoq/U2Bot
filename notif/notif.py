@@ -9,6 +9,8 @@ def termux_notif( follow_default=True, **kwargs ):
             "--title"   : "'U2 Running'",
             "--button1" : "'Exit'",
             "--button1-action" : "'echo -1 > ~/pipes/pipe'",
+            "--button2"  : "'Switch Task'",
+            "--button2-action" : "'echo 10 > ~/pipes/pipe'",
             "--priority" : "'high'",
             "-c"         : "'Log details'"
         }

@@ -26,7 +26,7 @@ class U2_Device:
 
     def __init__( self ):
 
-        self.d = u2.connect()
+        self.d = None
         self.task = tasktype.t1
 
         self.prev_task = 1
@@ -53,6 +53,10 @@ class U2_Device:
         self.restart = False
 
         self.thread = None
+        
+        # Multiprocessing Queue
+        self.queue = None
+        self.taskQueue = None
 
 
     def waitElement( self, selector, timeout ):
@@ -184,20 +188,16 @@ class U2_Device:
         self.task = self.next_task
 
 
-    def pipethread( self ):
+    def queueThread( self ):
         # Reads from pipe controlled by termux-notification
-        while True:
-            print("Receiving pipe")
-
-            result = subprocess.run([
-                "cat", "/data/data/com.termux/files/home/pipes/pipe"],
-                stdout=subprocess.PIPE
-            )
-            string = result.stdout.decode().strip()
-
-            if string == '-1':
-                print("Received ping")
-                break
+        print("Listening to taskQueue")
+        msg = self.queue.get()
+        print("U2_Device received ",msg)
+        self.taskQueue.put( { 
+            'task' : self.task,
+            'prev_task' : self.prev_task,
+            'next_task' : self.next_task
+        } )
 
 
     def mainloop( self ):
@@ -224,26 +224,34 @@ class U2_Device:
                 time.sleep(2)
 
 
-    def start( self ):
+    def run( self ):
         # Start main program
-        pipe_t = Thread(target = self.pipethread)
-        pipe_t.start()
+        queue_t = Thread(target = self.queueThread)
+        queue_t.start()
 
         self.thread = Thread(target=self.mainloop, daemon=True)
         self.thread.start()
 
-        # Clean up external processes
-        print("Mainloop started")
-        pipe_t.join()
+        queue_t.join()
+        print("U2Device mainloop exited")
 
-    def run( self ):
-        # Run termux-notification with default args
-        notif()
+def U2Run( data ):
+    # Unpack tuple
+    device, task, t1, t2, quest, queue, taskQueue = data
+    
+    u2dev = U2_Device()
+    u2dev.d = device
 
-        self.start() 
-        print("Closing notif")
+    u2dev.task = task
+    u2dev.task1 = t1
+    u2dev.task2 = t2
+    
+    u2dev.question = quest
+    u2dev.queue = queue
+    u2dev.taskQueue = taskQueue
 
-        os.system("termux-notification-remove 21")
+    u2dev.run()
+
 
 if __name__=='__main__':
     u2 = U2_Device()
