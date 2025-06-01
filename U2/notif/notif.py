@@ -59,13 +59,6 @@ def notif( pin=True, fd=True, **d ):
     termux_notif( fd, **result )
 
 if __name__=='__main__':
-    path = "/storage/emulated/0/VSCODE/CV/needle.png"
-    notif(
-        content="'Debug logs'",
-        title = "Lmao",
-        b1_action = "'termux-notification-removeb21'"
-    )
-
-
+    pass
 
     

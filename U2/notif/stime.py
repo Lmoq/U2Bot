@@ -7,6 +7,9 @@ def timenow() -> str:
 def getHour() -> str:
     return time.strftime("%H:%M")
 
+def getHourSec() -> str:
+    return time.strftime("%H:%M:%S")
+
 class Stime:
     # A string class that can be converted to seconds, 
     # perform arbitrary operations to its instances
@@ -156,6 +159,5 @@ class Stime:
 
 
 if __name__=='__main__':
-    print(gethour())
     pass
 

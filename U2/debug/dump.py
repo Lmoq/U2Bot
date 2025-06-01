@@ -2,7 +2,14 @@ import uiautomator2 as u2, time
 time.sleep(2)
 
 d = u2.connect()
-    
+
+
+
+
+path = "/storage/emulated/0/VSCODE/CV/outmess.xml"
+
+with open(path, 'w', encoding='utf-8') as f:
+    f.write( d.dump_hierarchy(pretty=False) )
 class types:
     click = "android.widget.TextView"
     text = "android.view.ViewGroup"

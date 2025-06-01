@@ -1,13 +1,13 @@
 import uiautomator2 as u2
-import json as j, traceback
+import json as j, traceback, sys
 import time, os, subprocess
 
 from .process import start_adb_shell_pipes
 from .debug import boxArea
-from .actions import adbClick
+from .actions import adbClick, vibrate
 
 from threading import Thread
-from .notif import notif, Tracker
+from .notif import notif, Tracker, Stime
 from .debug import notif_
 
 
@@ -33,6 +33,11 @@ class U2_Device:
 
         self.prev_task = 1
         self.next_task = 1
+
+        # App will not run on given time frame
+        self.start: Stime = None
+        self.end: Stime = None
+        self.ignoretime = False
 
         # android.widget.TextView
         self.task1 = {
@@ -61,39 +66,59 @@ class U2_Device:
 
 
     def waitElement( self, selector, timeout ):
-        ui = self.d( **selector )
+        
+        try:            
+            ui = self.d( **selector )
 
-        return ui \
-        if ui.wait( timeout=timeout ) \
-        else None
+            return ui \
+            if ui.wait( timeout=timeout ) \
+            else None
+        
+        except Exception as e:
+            print(f"waitException : {e}")
+            return 'FAILED'
+
+
+    def getInfo( self, ui, log=True, text="" ):
+        success = False
+        
+        retries = 0
+        info = None
+        
+        while not success:
+            try:
+                info = ui.info
+                success = True          
+            except Exception:
+                retries += 1
+        if log: notif_( 1, f"{text} info in {retries} retries" )
+        return info
 
 
     def doTask1( self ):
         # Search task1 elements
-        try:
-            if self.qui != None: 
-                
-                gone = self.qui.wait_gone( timeout=300 )
+        if self.qui != None:                
+            gone = self.qui.wait_gone( timeout=300 )
 
-                if not gone:
-                    boxArea( self.qui.info['bounds'] )
-                    notif_( 1, f"Last qui persisted[ {self.qui} ]" )
-                    
-                    self.running = False
-                    self.qui = None
-                    return
+            if not gone:
+                boxArea( self.qui.info['bounds'] )
+                notif_( 1, f"Last qui persisted[ {self.qui.info} ]" )
 
-        except Exception as e:
-            # print("WaitObject out of visibility\n")
-            pass
+                vibrate( 1, 3 )
+
+                self.running = False
+                self.qui = None
+
+                return
+
         # Find question
         ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=400 )
         
-        if not ui:
-            notif_( 1, "Find element timedout\n")
+        if not ui or ui == "FAILED":
+            notif_( 1, f"Find element timedout ui[ {ui}] ")
             return
 
-        info = ui.info
+        info = self.getInfo( ui, True, "qui" )
 
         # Ignore still visible answered question
         if info.get('bounds').get('top') < 200:
@@ -105,15 +130,18 @@ class U2_Device:
         start = time.time()
         ui = self.waitElement( {"text" : text, "className" : wtype.clickable}, timeout=4 )
         
-        if not ui:
+        if not ui or ui == "FAILED":
+            notif_( 1, f"{text} not found")
             return
 
-        info = ui.info
+        info = self.getInfo( ui, True, "aui" )
         
         bounds = info['bounds']
         self.check = info['text']
 
         if self.check != text:
+            notif_(1, f"Diff text[ {self.check} ]")   
+            vibrate( 1, 2 )
             return
 
         adbClick( bounds )
@@ -129,23 +157,20 @@ class U2_Device:
 
     def doTask2( self ):
         # Search task2 elements
-        try:
-            cui = self.waitElement( {"text" : self.task2, "className" : wtype.clickable }, timeout=410 ) 
-            
-            if not cui:
-                notif_(1, f"[ {self.task2} ] timedout")
-                return
+        cui = self.waitElement( {"text" : self.task2, "className" : wtype.clickable }, timeout=410 ) 
+        
+        if not cui or cui == "FAILED":
+            notif_(1, f"[ {self.task2} ] timedout")
+            return
 
-        except Exception:
-            print("T2 Clikable Not found")
-            time.sleep(2)
-
-        info = cui.info
+        info = self.getInfo( cui, True, "cui" )
 
         bounds = info['bounds']
         self.check = info['text']
 
         if self.check != self.task2:
+            notif_(1, f"Diff text[ {self.check} ]") 
+            vibrate( 1, 2 )
             cui = None
             return
         
@@ -164,14 +189,14 @@ class U2_Device:
     def doCheck( self ):
         # Wait for ui to exists before switching task
         ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=10 )
-        
-        if not ui:
-            # Double check
-            ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=0.1 )
-        
-        if not ui:
+         
+        if ui is None:
             boxArea( None )
+            vibrate( 1, 2 )
             self.task = self.prev_task 
+        
+        elif ui == "FAILED":
+            printf("Check element failed")
             return
 
         # Used check ui as wait ui due to immediate question appearance
@@ -213,14 +238,28 @@ class U2_Device:
 
             except Exception as e:
 
-                tb = traceback.extract_tb(e.__traceback__)[-1]
-                filename, lineno, func, text = tb
+                #tb = traceback.extract_tb(e.__traceback__)[-1]
+                #filename, lineno, func, text = tb
+                #print(f"Error: {e} (line {lineno} in {filename})")
                 
-                # print(f"Error: {e} (line {lineno} in {filename})")
-                time.sleep(2)
+                traceback.print_exception(type(e), e, e.__traceback__, file=sys.stdout)
+                vibrate(1, 3)
 
 
     def run( self ):
+        # Only run app on allowed time frame
+        if not self.ignoretime:
+            stime = Stime() 
+            
+            if stime.in_range( self.start, self.end ):
+                w = f"'App prohibited running between\n[ {self.start} ] - [ {self.end}] '"
+                
+                print(w) 
+                notif( content=w, pin=False, b1="''" )
+
+                vibrate( 1, 1 )
+                return
+
         # Start adb and pipes
         start_adb_shell_pipes()
         

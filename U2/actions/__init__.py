@@ -1,1 +1,1 @@
-from .actions import adbClick
+from .actions import adbClick, vibrate
