@@ -9,6 +9,7 @@ from .actions import adbClick, vibrate
 from threading import Thread
 from .notif import notif, Tracker, Stime
 from .debug import notif_
+from .debug.log import NotifLog
 
 
 class wtype:
@@ -52,6 +53,9 @@ class U2_Device:
         self.check = self.task2
         self.check_timer = time.time()
 
+        self.lastClick = {}
+        self.lastCheckBounds = {}
+
         # UiObject
         self.qui = None
         
@@ -79,7 +83,7 @@ class U2_Device:
             return 'FAILED'
 
 
-    def getInfo( self, ui, log=True, text="" ):
+    def getInfo( self, ui, log=False, text="" ):
         success = False
         
         retries = 0
@@ -91,6 +95,9 @@ class U2_Device:
                 success = True          
             except Exception:
                 retries += 1
+                if retries > NotifLog.gInfo:
+                    NotifLog.gInfo = retries
+
         if log: notif_( 1, f"{text} info in {retries} retries" )
         return info
 
@@ -98,27 +105,34 @@ class U2_Device:
     def doTask1( self ):
         # Search task1 elements
         if self.qui != None:                
-            gone = self.qui.wait_gone( timeout=300 )
+            gone = self.qui.wait_gone( timeout=500 )
 
             if not gone:
-                boxArea( self.qui.info['bounds'] )
-                notif_( 1, f"Last qui persisted[ {self.qui.info} ]" )
+                info = self.getInfo( self.qui )
 
+                notif_( 1, f"Last qui persisted[ {info['text'} ]" )
                 vibrate( 1, 3 )
 
+                boxArea( self.lastClick, "click" )
+                time.sleep(1)
+                boxArea( self.lastCheckBounds, "check" )
+                time.sleep(1)
+                boxArea( info['bounds'], "qui" )
+                
                 self.running = False
                 self.qui = None
 
                 return
 
         # Find question
-        ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=400 )
+        ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=80 )
         
         if not ui or ui == "FAILED":
             notif_( 1, f"Find element timedout ui[ {ui}] ")
+            NotifLog.timeout += 1
             return
 
-        info = self.getInfo( ui, True, "qui" )
+        info = self.getInfo( ui )
 
         # Ignore still visible answered question
         if info.get('bounds').get('top') < 200:
@@ -134,7 +148,7 @@ class U2_Device:
             notif_( 1, f"{text} not found")
             return
 
-        info = self.getInfo( ui, True, "aui" )
+        info = self.getInfo( ui )
         
         bounds = info['bounds']
         self.check = info['text']
@@ -157,23 +171,23 @@ class U2_Device:
 
     def doTask2( self ):
         # Search task2 elements
-        cui = self.waitElement( {"text" : self.task2, "className" : wtype.clickable }, timeout=410 ) 
+        cui = self.waitElement( {"text" : self.task2, "className" : wtype.clickable }, timeout=80 ) 
         
         if not cui or cui == "FAILED":
             notif_(1, f"[ {self.task2} ] timedout")
+            NotifLog.timeout += 1
             return
 
-        info = self.getInfo( cui, True, "cui" )
+        info = self.getInfo( cui )
 
         bounds = info['bounds']
         self.check = info['text']
 
         if self.check != self.task2:
             notif_(1, f"Diff text[ {self.check} ]") 
-            vibrate( 1, 2 )
             cui = None
             return
-        
+
         # Click and update values
         adbClick( bounds )
         notif_( 1, f"Clicked[ {self.check} ] [ {interval.trackS()} ]")
@@ -184,17 +198,19 @@ class U2_Device:
 
         # Switch to check task
         self.task = tasktype.check
+        self.lastClick = bounds
 
 
     def doCheck( self ):
         # Wait for ui to exists before switching task
-        ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=10 )
+        ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=5 )
          
-        if ui is None:
-            boxArea( None )
-            vibrate( 1, 2 )
-            self.task = self.prev_task 
-        
+        if ui == None:
+            NotifLog.recheck += 1
+            notif_(1, f"Check failed:{self.check}")
+            self.task = self.prev_task
+            return
+
         elif ui == "FAILED":
             printf("Check element failed")
             return
@@ -203,22 +219,24 @@ class U2_Device:
         if self.prev_task == 1:
             self.qui = ui
 
+        elif self.prev_task == 2:
+            info = self.getInfo( ui )
+            self.lastCheckBounds = info['bounds']
+        
         notif_( 1, f"Checked[ {self.check} ] [ {elapsed.trackS()} ]")
         self.task = self.next_task
 
 
     def pipethread( self ):
         # Reads from pipe controlled by termux-notification
-        pPath = "/data/data/com.termux/files/home/pipes/pipe"
-        with open( pPath, 'r' ) as pipe:
+        pPath = "/data/data/com.termux/files/home/pipes/pipe" 
+        while True:
+            result = subprocess.run( f"cat {pPath}", shell=True, text=True, stdout=subprocess.PIPE ).stdout.strip()
 
-            while True:
-                print("Receiving pipe")
-                string = pipe.readline().strip()
-
-                if string == '-1':
-                    print("Received Exit signal")
-                    break
+            if result == '-1':
+                notif_( 1, "Received exit signal")
+                self.running = False
+                break
 
 
     def mainloop( self ):
@@ -240,16 +258,16 @@ class U2_Device:
 
                 #tb = traceback.extract_tb(e.__traceback__)[-1]
                 #filename, lineno, func, text = tb
-                #print(f"Error: {e} (line {lineno} in {filename})")
+                #print(f"error: {e} (line {lineno} in {filename})")
                 
                 traceback.print_exception(type(e), e, e.__traceback__, file=sys.stdout)
-                vibrate(1, 3)
+                #vibrate(1, 3)
 
 
     def run( self ):
         # Only run app on allowed time frame
         if not self.ignoretime:
-            stime = Stime() 
+            stime = stime() 
             
             if stime.in_range( self.start, self.end ):
                 w = f"'App prohibited running between\n[ {self.start} ] - [ {self.end}] '"
@@ -262,25 +280,25 @@ class U2_Device:
 
         # Start adb and pipes
         start_adb_shell_pipes()
-        
-        # Run termux-notification with default args
+
+        # run termux-notification with default args
         notif()
 
-        # Start main program
+        # start main program
         pipe_t = Thread(target = self.pipethread)
         pipe_t.start()
 
         self.thread = Thread(target=self.mainloop, daemon=True)
         self.thread.start()
 
-        # Clean up external processes
-        print(f"Running[ {self.running} ]")
+        # clean up external processes
+        print(f"running[ {self.running} ]")
         pipe_t.join()
          
         print("Closing notif")
         os.system("termux-notification-remove 21")
 
 if __name__=='__main__':
-    u2 = U2_Device()
+    u2 = u2_device()
     u2.task = 1
     u2.run()

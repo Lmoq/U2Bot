@@ -2,12 +2,13 @@ import cv2 as cv
 import os, time
 
 # Ensure adbpipe and shell is running
-def boxArea( coo:dict ):
+def boxArea( coo:dict, name:str="snip" ):
     # coo = ui.info['bounds']
-    path = "/storage/emulated/0/VSCODE/CV/needle.png"
-
+    path = f"/storage/emulated/0/VSCODE/CV/{name}.png"
+    
     os.system(f"echo screencap {path} > ~/pipes/adbpipe")
-    time.sleep(0.5)
+    time.sleep(0.8)
+
     img = cv.imread( path, 1 )
 
     if coo is not None:
@@ -21,17 +22,12 @@ def boxArea( coo:dict ):
             lineType = cv.LINE_4,
             thickness = 3
         )
-    cv.imwrite( path, img)
+    cv.imwrite( path, img )
 
 if __name__=='__main__':
     import time
-    coo = {
-            'left':109, 
-            'top':921, 
-            'right':507, 
-            'bottom':1160
-    }
     time.sleep(2)
-    boxArea(coo)
+    coo = {'bottom': 1474, 'left': 586, 'right': 694, 'top': 1384} 
+    boxArea(coo, 1)
 
 

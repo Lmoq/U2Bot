@@ -13,6 +13,7 @@ with open(path, 'w', encoding='utf-8') as f:
 class types:
     click = "android.widget.TextView"
     text = "android.view.ViewGroup"
+    button = "android.widget.Button"
 
 # Dump all TextView
 selector = {"className": types.click }
@@ -27,14 +28,14 @@ for i in range(4):  # Arbitrary max limit
         continue
 
 # Dump all ViewGroup
-selector = {"className": types.text }
-for i in range(10,12):  # Arbitrary max limit
+selector = {"className": types.button }
+for i in range(0,15):  # Arbitrary max limit
     el = d(**selector, instance=i)
     if not el.exists:
         break
     try:
-        print(f"[Instance {i}] {el.info['className']} | {repr(el.info['text'])}")
-        print(f"field : {el.selector}")
+        print(f"[Instance {i}] {el.info} | {repr(el.info['text'])}")
+        print(f"bounds : {el.info['bounds']}")
     except Exception as e:
         print(f"ViewGroup Instance {i}:Error")
         continue

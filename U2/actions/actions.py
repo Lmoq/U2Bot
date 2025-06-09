@@ -19,7 +19,7 @@ def vibrate( duration, times ):
     duration *= 1000
     cm = []
     for i in range( times ): 
-        cm.append( f"termux-vibrate -d {duration}" )
+        cm.append( f"termux-vibrate -f -d {duration}" )
     cm = ";sleep 0.5;".join( cm )
 
     os.system( cm + " &")
