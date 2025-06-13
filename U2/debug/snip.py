@@ -1,10 +1,16 @@
 import cv2 as cv
 import os, time
 
+count = 0
 # Ensure adbpipe and shell is running
-def boxArea( coo:dict, name:str="snip" ):
+def boxArea( coo:dict, name:str="snip", overlap=True ):
+    global count    
     # coo = ui.info['bounds']
-    path = f"/storage/emulated/0/VSCODE/CV/{name}.png"
+    if not overlap:
+        name = f'{count:02d}-{name}'
+        count += 1
+
+    path = f"/storage/emulated/0/termux_dump/{name}.png"
     
     os.system(f"echo screencap {path} > ~/pipes/adbpipe")
     time.sleep(0.8)

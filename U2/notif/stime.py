@@ -135,6 +135,7 @@ class Stime:
         if not isinstance( stime, Stime ):
             return none
 
+        print(f"comapring {self.seconds} to {stime.seconds}")
         return self.seconds >= stime.seconds
     
 
@@ -153,7 +154,7 @@ class Stime:
         if self >= start and self <= end:
             return True
         elif start > end:
-            if self >= end or self <= start:
+            if self >= start or self <= end:
                 return True
         return False
 

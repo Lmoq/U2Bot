@@ -105,12 +105,12 @@ class U2_Device:
     def doTask1( self ):
         # Search task1 elements
         if self.qui != None:                
-            gone = self.qui.wait_gone( timeout=500 )
+            gone = self.qui.wait_gone( timeout=600 )
 
             if not gone:
                 info = self.getInfo( self.qui )
 
-                notif_( 1, f"Last qui persisted[ {info['text'} ]" )
+                notif_( 1, f"Last qui persisted[ {info['text']} ]" )
                 vibrate( 1, 3 )
 
                 boxArea( self.lastClick, "click" )
@@ -128,7 +128,7 @@ class U2_Device:
         ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=80 )
         
         if not ui or ui == "FAILED":
-            notif_( 1, f"Find element timedout ui[ {ui}] ")
+            notif_( 1, f"Find element timedout e:[ {ui} ] ")
             NotifLog.timeout += 1
             return
 
@@ -142,7 +142,7 @@ class U2_Device:
         text = self.task1[info['text']]
         
         start = time.time()
-        ui = self.waitElement( {"text" : text, "className" : wtype.clickable}, timeout=4 )
+        ui = self.waitElement( {"text" : text, "className" : wtype.clickable}, timeout=6 )
         
         if not ui or ui == "FAILED":
             notif_( 1, f"{text} not found")
@@ -159,7 +159,9 @@ class U2_Device:
             return
 
         adbClick( bounds )
-        notif_( 1, f"Clicked[ {text} ] [ {elapsed.trackS()} ]")
+
+        elapsed.trackS()
+        notif_( 1, f"Clicked[ {text[:9]} ] [ {elapsed.trackStr} ]")
         
         # Update task values
         self.prev_task = self.task
@@ -167,6 +169,7 @@ class U2_Device:
 
         # Switch to check task
         self.task = tasktype.check
+        self.lastClick = bounds
 
 
     def doTask2( self ):
@@ -190,7 +193,12 @@ class U2_Device:
 
         # Click and update values
         adbClick( bounds )
-        notif_( 1, f"Clicked[ {self.check} ] [ {interval.trackS()} ]")
+
+        interval.trackS()
+        interval.get_avg()
+
+        NotifLog.total_duration = interval.avgStr
+        notif_( 1, f"Clicked[ {self.check} ] [ {interval.trackStr} ]")
 
         # Update task values
         self.prev_task = self.task
@@ -203,11 +211,14 @@ class U2_Device:
 
     def doCheck( self ):
         # Wait for ui to exists before switching task
-        ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=5 )
+        ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=3 )
          
         if ui == None:
             NotifLog.recheck += 1
-            notif_(1, f"Check failed:{self.check}")
+            notif_(1, f"Check failed:{self.check[:9]}")
+
+            boxArea( self.lastClick, f"task{self.prev_task}", overlap=False )
+
             self.task = self.prev_task
             return
 
@@ -223,7 +234,9 @@ class U2_Device:
             info = self.getInfo( ui )
             self.lastCheckBounds = info['bounds']
         
-        notif_( 1, f"Checked[ {self.check} ] [ {elapsed.trackS()} ]")
+        elapsed.trackS()
+        notif_( 1, f"Checked[ {self.check[:9]} ] [ {elapsed.trackStr} ]")
+
         self.task = self.next_task
 
 
@@ -267,11 +280,11 @@ class U2_Device:
     def run( self ):
         # Only run app on allowed time frame
         if not self.ignoretime:
-            stime = stime() 
+            stime = Stime() 
             
             if stime.in_range( self.start, self.end ):
                 w = f"'App prohibited running between\n[ {self.start} ] - [ {self.end}] '"
-                
+                print(stime)
                 print(w) 
                 notif( content=w, pin=False, b1="''" )
 
