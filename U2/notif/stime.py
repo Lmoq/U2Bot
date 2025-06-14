@@ -23,7 +23,9 @@ class Stime:
         "Sat" : 5,
         "Sun" : 6
     }
-    max_seconds = 604800 
+    max_seconds = 604800
+    beginning = "Mon 00:00:00"
+    end = "Sun 23:59:59"
     
     def __init__( self, time_str:str="", default = True ): 
         self.str = timenow() if (default and not time_str) else time_str

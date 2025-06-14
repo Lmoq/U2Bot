@@ -15,6 +15,7 @@ from .debug.log import NotifLog
 class wtype:
     clickable = "android.widget.TextView"
     text = "android.view.ViewGroup"
+    button = "android.widget.Button"
 
 class tasktype:
     t1 = 1
@@ -47,30 +48,36 @@ class U2_Device:
         }
         # android.widget.TextView
         self.task2 = ""
+        self.task2_px_max = 0
+        self.task2_timeout = 400
 
         # android.view.ViewGroup
         self.question = ''
+        self.question_timeout = 400
+
         self.check = self.task2
         self.check_timer = time.time()
 
+        # Last click and check ui bounds
         self.lastClick = {}
         self.lastCheckBounds = {}
 
-        # UiObject
+        # Restart max time
+        self.restart_time = 0
+
+        # Wait gone UiObject
         self.qui = None
         
         # Bool
         self.running = True
         self.restart = False
 
-        self.thread = None
-
         for k,v in kwargs.items():
             setattr( self, k, v )
 
 
     def waitElement( self, selector, timeout ):
-        
+        # Wait until ui element exists then returns uiobject
         try:            
             ui = self.d( **selector )
 
@@ -83,7 +90,7 @@ class U2_Device:
             return 'FAILED'
 
 
-    def getInfo( self, ui, log=False, text="" ):
+    def getInfo( self, ui ):
         success = False
         
         retries = 0
@@ -98,7 +105,6 @@ class U2_Device:
                 if retries > NotifLog.gInfo:
                     NotifLog.gInfo = retries
 
-        if log: notif_( 1, f"{text} info in {retries} retries" )
         return info
 
 
@@ -125,7 +131,7 @@ class U2_Device:
                 return
 
         # Find question
-        ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=80 )
+        ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=self.question_timeout )
         
         if not ui or ui == "FAILED":
             notif_( 1, f"Find element timedout e:[ {ui} ] ")
@@ -161,7 +167,7 @@ class U2_Device:
         adbClick( bounds )
 
         elapsed.trackS()
-        notif_( 1, f"Clicked[ {text[:9]} ] [ {elapsed.trackStr} ]")
+        notif_( 1, f"Clicked[ {text[:9]} ] [ {elapsed} ]")
         
         # Update task values
         self.prev_task = self.task
@@ -174,7 +180,7 @@ class U2_Device:
 
     def doTask2( self ):
         # Search task2 elements
-        cui = self.waitElement( {"text" : self.task2, "className" : wtype.clickable }, timeout=80 ) 
+        cui = self.waitElement( {"text" : self.task2, "className" : wtype.clickable }, timeout=self.task2_timeout ) 
         
         if not cui or cui == "FAILED":
             notif_(1, f"[ {self.task2} ] timedout")
@@ -191,14 +197,18 @@ class U2_Device:
             cui = None
             return
 
+        if bounds['left'] > self.task2_px_max:
+            boxArea( bounds, "OB", False )
+            print(f"Bounds went off limit :\n{bounds}")
+            return
+
         # Click and update values
         adbClick( bounds )
 
         interval.trackS()
-        interval.get_avg()
 
-        NotifLog.total_duration = interval.avgStr
-        notif_( 1, f"Clicked[ {self.check} ] [ {interval.trackStr} ]")
+        NotifLog.total_duration = interval.avgTime
+        notif_( 1, f"Clicked[ {self.check} ] [ {interval} ]")
 
         # Update task values
         self.prev_task = self.task
@@ -217,7 +227,7 @@ class U2_Device:
             NotifLog.recheck += 1
             notif_(1, f"Check failed:{self.check[:9]}")
 
-            boxArea( self.lastClick, f"task{self.prev_task}", overlap=False )
+            boxArea( self.lastClick, f"task{self.prev_task}", False )
 
             self.task = self.prev_task
             return
@@ -225,6 +235,8 @@ class U2_Device:
         elif ui == "FAILED":
             printf("Check element failed")
             return
+
+        elapsed.trackS()
 
         # Used check ui as wait ui due to immediate question appearance
         if self.prev_task == 1:
@@ -234,10 +246,39 @@ class U2_Device:
             info = self.getInfo( ui )
             self.lastCheckBounds = info['bounds']
         
-        elapsed.trackS()
-        notif_( 1, f"Checked[ {self.check[:9]} ] [ {elapsed.trackStr} ]")
-
         self.task = self.next_task
+
+        if interval.avgTime.seconds > self.restart_time:           
+            # Restart app if intervals take longer than usual
+            self.restartTarget( 3 )
+            NotifLog.restarts += 1
+            
+            # Reset tracker
+            interval.avgTime.seconds = 0
+            interval.total_duration = 0
+            interval.time_stamps = 0
+
+
+        notif_( 1, f"Checked[ {self.check[:9]} ] [ {elapsed} ]")
+
+
+    def restartTarget( self, instance_number ):
+        # Force stop and reopen target app
+        os.system( "adb shell am force-stop com.facebook.orca; sleep 0.4; adb shell am start -n com.facebook.orca/.auth.StartScreenActivity &> /dev/null" )
+        time.sleep( 1.5 )
+
+        ui = None
+        while ui is None:
+            try:
+                ui = self.d( className = wtype.button, instance = instance_number )
+            except:
+                continue
+
+        info = self.getInfo( ui )
+        bounds = info['bounds']
+
+        adbClick( bounds )       
+        return
 
 
     def pipethread( self ):
@@ -252,7 +293,7 @@ class U2_Device:
                 break
 
 
-    def mainloop( self ):
+    def mainloop( self ): 
         while self.running:
             #if d.device_info.get('package') != 'com.facebook.orca':
                 #continue

@@ -8,6 +8,7 @@ class NotifLog:
     gInfo = 0
     timeout = 0
     total_duration = ""
+    restarts = 0
 
     def __init__( self, capacity ):
         self.capacity = capacity
@@ -29,7 +30,7 @@ class NotifLog:
 
     
     def updateTitle( self ):
-        NotifLog.title = f'U2 | RC : {NotifLog.recheck} | GI : {NotifLog.gInfo} | TM : {NotifLog.timeout} | DR : {NotifLog.total_duration}'
+        NotifLog.title = f'U2 | RC : {NotifLog.recheck} | GI : {NotifLog.gInfo} | TM : {NotifLog.timeout} | DR : {NotifLog.total_duration} | RS : {NotifLog.restarts}'
 
 notiflog = NotifLog(4)
 

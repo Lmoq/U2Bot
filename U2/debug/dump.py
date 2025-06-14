@@ -44,7 +44,7 @@ def viewElements( _type, _range ):
             found[f"Instance {i}-{info['text'].split('\n')[0]}"] = info
 
             shortName = info['className'].split('.')[-1]
-            print(f"[Instance {i}] {shortName} | {repr(info['text'])}")
+            print(f"[Instance {i}] {shortName} | {repr(info['text'])}\n {info['bounds']}")
         
         except Exception as e:
             #print(f"TextWidget Instance {i}:Error")
@@ -77,4 +77,4 @@ def viewElements( _type, _range ):
     os.system("adb shell cmd notification post -S bigtext Done Done Done &> /dev/null")
 
 if __name__=='__main__':
-    viewElements( types.button, (0,25) )
+    viewElements( types.button, (0,20) )
