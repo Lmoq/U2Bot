@@ -20,7 +20,7 @@ def dump():
         f.write( d.dump_hierarchy(pretty=False) )
 
 
-def viewElements( _type, _range ):
+def viewElements( _type, log=False, _range=(0,20) ):
     # Dump all specified widget type
     time.sleep(2)
     d = u2.connect()
@@ -50,6 +50,9 @@ def viewElements( _type, _range ):
             #print(f"TextWidget Instance {i}:Error")
             continue
 
+    if not log:
+        return
+
     # Draw rectangle of positions of every element found
     adbshot = path + '/adbshot.png'
     os.system(f"adb shell screencap {adbshot}")
@@ -77,4 +80,4 @@ def viewElements( _type, _range ):
     os.system("adb shell cmd notification post -S bigtext Done Done Done &> /dev/null")
 
 if __name__=='__main__':
-    viewElements( types.button, (0,20) )
+    pass

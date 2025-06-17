@@ -96,10 +96,9 @@ class U2_Device:
         retries = 0
         info = None
         
-        while not success:
+        while not info:
             try:
-                info = ui.info
-                success = True          
+                info = ui.info       
             except Exception:
                 retries += 1
                 if retries > NotifLog.gInfo:
@@ -134,7 +133,7 @@ class U2_Device:
         ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=self.question_timeout )
         
         if not ui or ui == "FAILED":
-            notif_( 1, f"Find element timedout e:[ {ui} ] ")
+            notif_( 1, f"Question e[{'None' if not ui else 'FAILED'}] ")
             NotifLog.timeout += 1
             return
 
@@ -161,11 +160,11 @@ class U2_Device:
 
         if self.check != text:
             notif_(1, f"Diff text[ {self.check} ]")   
-            vibrate( 1, 2 )
             return
 
         adbClick( bounds )
 
+        # Track time interval of each action
         elapsed.trackS()
         notif_( 1, f"Clicked[ {text[:9]} ] [ {elapsed} ]")
         
@@ -202,13 +201,14 @@ class U2_Device:
             print(f"Bounds went off limit :\n{bounds}")
             return
 
-        # Click and update values
         adbClick( bounds )
-
+        
+        # Track cycle duration
         interval.trackS()
 
+        # Log average time interval per cycle
         NotifLog.total_duration = interval.avgTime
-        notif_( 1, f"Clicked[ {self.check} ] [ {interval} ]")
+        notif_( 1, f"Clicked[ {self.check[:9]} ] [ {interval} ]")
 
         # Update task values
         self.prev_task = self.task
@@ -238,16 +238,17 @@ class U2_Device:
 
         elapsed.trackS()
 
-        # Used check ui as wait ui due to immediate question appearance
         if self.prev_task == 1:
+            # Use check ui as waitGone ui
+            # to be used as signal to look
+            # for new question ui since multiple
+            # question ui exists at the instant search action is on 
             self.qui = ui
 
         elif self.prev_task == 2:
             info = self.getInfo( ui )
             self.lastCheckBounds = info['bounds']
         
-        self.task = self.next_task
-
         if interval.avgTime.seconds > self.restart_time:           
             # Restart app if intervals take longer than usual
             self.restartTarget( 3 )
@@ -258,7 +259,7 @@ class U2_Device:
             interval.total_duration = 0
             interval.time_stamps = 0
 
-
+        self.task = self.next_task
         notif_( 1, f"Checked[ {self.check[:9]} ] [ {elapsed} ]")
 
 
@@ -270,6 +271,7 @@ class U2_Device:
         ui = None
         while ui is None:
             try:
+                # Messenger chat tabs' className is wtype.button
                 ui = self.d( className = wtype.button, instance = instance_number )
             except:
                 continue
@@ -281,14 +283,12 @@ class U2_Device:
         return
 
 
-    def pipethread( self ):
+    def key_interrupt_listener( self ):
         # Reads from pipe controlled by termux-notification
-        pPath = "/data/data/com.termux/files/home/pipes/pipe" 
         while True:
-            result = subprocess.run( f"cat {pPath}", shell=True, text=True, stdout=subprocess.PIPE ).stdout.strip()
-
-            if result == '-1':
-                notif_( 1, "Received exit signal")
+            try:
+                time.sleep(10)
+            except KeyboardInterrupt:
                 self.running = False
                 break
 
@@ -327,7 +327,7 @@ class U2_Device:
                 w = f"'App prohibited running between\n[ {self.start} ] - [ {self.end}] '"
                 print(stime)
                 print(w) 
-                notif( content=w, pin=False, b1="''" )
+                notif_( 0, w )
 
                 vibrate( 1, 1 )
                 return
@@ -335,22 +335,14 @@ class U2_Device:
         # Start adb and pipes
         start_adb_shell_pipes()
 
-        # run termux-notification with default args
-        notif()
-
         # start main program
-        pipe_t = Thread(target = self.pipethread)
-        pipe_t.start()
-
         self.thread = Thread(target=self.mainloop, daemon=True)
         self.thread.start()
 
-        # clean up external processes
         print(f"running[ {self.running} ]")
-        pipe_t.join()
+        self.key_interrupt_listener()
          
-        print("Closing notif")
-        os.system("termux-notification-remove 21")
+        print("Closing app")
 
 if __name__=='__main__':
     u2 = u2_device()
