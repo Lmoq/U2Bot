@@ -10,15 +10,16 @@ class NotifLog:
     total_duration = ""
     restarts = 0
 
-    def __init__( self, capacity ):
-        self.capacity = capacity
+    capacity = 4
+
+    def __init__( self ):
         self.list = []
 
 
     def __lt__( self, string ):
         self.list.append( string )
         
-        if len( self.list ) > self.capacity:
+        if len( self.list ) > NotifLog.capacity:
             self.list.pop( 0 )
 
 
@@ -30,25 +31,19 @@ class NotifLog:
 
     
     def updateTitle( self ):
-        NotifLog.title = f'U2 | RC : {NotifLog.recheck} | GI : {NotifLog.gInfo} | TM : {NotifLog.timeout} | DR : {NotifLog.total_duration} | RS : {NotifLog.restarts}'
+        NotifLog.title = f'U2 | RC : {NotifLog.recheck} | DR : {NotifLog.total_duration} | RS : {NotifLog.restarts}'
 
-notiflog = NotifLog(4)
-
-def logNotif( timestamp, log ):
-    # Log to termux-notification
-    # notif( content = notiflog )
-    pass
+notiflog = NotifLog()
 
 def notif_( timeStamp, log ):
-    # Log to stdout and notifciation
-    # Thread( target=logNotif, args=(timeStamp,log,) ).start()
+    # Log to adb shell notifciation
     stamp = "" if not timeStamp else f"[ {getHourSec()} ] "
     log_ = stamp + log
 
     notiflog < log_
     notiflog.updateTitle()
 
-    cm = f'''echo 'cmd notification post -S inbox {notiflog} -t "{NotifLog.title}" notif Logs &> /dev/null' > ~/pipes/adbpipe'''
+    cm = f'''echo 'cmd notification post -S inbox {notiflog} -t "{NotifLog.title}" notif logs &> /dev/null' > ~/pipes/adbpipe'''
     os.system(cm)
 
 if __name__=='__main__':

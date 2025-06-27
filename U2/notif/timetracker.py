@@ -1,24 +1,70 @@
 import time
-from .stime import Stime
 
 
-class Tracker( Stime ):
+class Time:
 
-    def __init__( self, time_str:str="", **kwargs ):
-        super().__init__( time_str, **kwargs )
+
+    def __init__( self ):
+        self.str = "00:00"
+        self.seconds = 0
+
+
+    def set_seconds( self, n : int ):
+        if not isinstance( n, int ):
+            self.str = "Error"
+            return
+        self.seconds = n
+
+        # Convert int to time string
+        hour = ( n // 3600 ) % 24
+        mins = ( n // 60 ) % 60
+        secs = ( n % 60 )
+
+        _str = ""
+        _str += f"{hour:02d}:" if hour else ""
+        _str += f"{mins:02d}:{secs:02d}"
+        self.str = _str
+
+
+    def set_string( self, s : str ):
+        if not isinstance( s, str ):
+            self.seconds = 0
+            self.str = "Error"
+            return
+        self.str = s
+
+        # Convert time string to seconds
+        _split = s.split( ':' )
+
+        hour = int( _split[0] ) * 3600 if len( _split ) > 2 else 0
+        mins = int( _split[-2] ) * 60
+        secs = int( _split[-1] )
+
+        self.seconds = hour + mins + secs
+
+
+    def __repr__( self ):
+        return self.str
+
+
+class Tracker( Time ):
+
+
+    def __init__( self, min_interval = 0 ):
+        super().__init__()
+        # List containers for tracked time
         self.shortL = []
         self.longL = []
 
-        # Sum of every elapsed time
-        self.total_duration = 0
+        # Sum of every elapsed time calculated
+        self.total_interval = 0
+        self.track_calls = 0
 
-        # Number of times calculation of interval done
-        self.time_stamps = 0
-        self.avgTime = Stime( Stime.beginning )
+        # Minimum interval required to track
+        self.min_interval = min_interval
 
-        # Set string to minutes and seconds only
-        self.str = self.str[7:]
-        self.avgTime.str = self.avgTime.str[7:]
+        # Time class for average time interval
+        self.avgTime = Time()
 
 
     def trackS( self ):
@@ -27,29 +73,30 @@ class Tracker( Stime ):
         if len( self.shortL ) > 1:
             t = self.shortL
       
-            self.seconds = int( t[1] - t[0] )
-            
-            if self.seconds > 40:
-                self.total_duration += self.seconds
+            interval = int( t[1] - t[0] )
+
+            # Set a minimum interval to prevent messing with average intervak
+            if interval > self.min_interval:
+                self.total_interval += interval
                 
-                self.time_stamps += 1
+                self.track_calls += 1
                 self.calc_avg()
 
-            self.to_str( self.seconds )
-
-            # Set string to minutes and seconds only
-            self.str = self.str[7:]
-            self.avgTime.str = self.avgTime.str[7:]
-            
+            self.set_seconds( interval )
             del t[0]
 
 
     def calc_avg( self ):
-        self.avgTime.to_str( self.total_duration // self.time_stamps ) if self.time_stamps else None
-        self.avgTime.to_seconds( self.avgTime.str )
+        self.avgTime.set_seconds( self.total_interval // self.track_calls ) if self.track_calls else None
 
 
 if __name__=='__main__':
+    t = Tracker()
+    t.set_seconds( 216000 )
+
+
+    print( t )
+
     pass
 
 

@@ -4,7 +4,7 @@ import time, os, subprocess
 
 from .process import start_adb_shell_pipes
 from .debug import boxArea
-from .actions import adbClick, vibrate
+from .actions import adbClick, adbClickNoUi, vibrate, buttonInstance
 
 from threading import Thread
 from .notif import notif, Tracker, Stime
@@ -23,13 +23,12 @@ class tasktype:
     check = 3
     wait = 4
 
-elapsed = Tracker()
-interval = Tracker()
 
 class U2_Device:
 
     def __init__( self, **kwargs ):
-
+        
+        self.tag = ""
         self.d = u2.connect()
         self.task = tasktype.t1
 
@@ -62,15 +61,24 @@ class U2_Device:
         self.lastClick = {}
         self.lastCheckBounds = {}
 
+        # Time trackers
+        self.elapsed = Tracker()
+        self.interval = Tracker( 40 )
+        
         # Restart max time
         self.restart_time = 0
-
+        self.button_instance_num = 3
+        self.button_instance = buttonInstance.i3
+        
         # Wait gone UiObject
         self.qui = None
         
         # Bool
         self.running = True
+        self.multi_bot = False
+        
         self.restart = False
+        self.restricted = False
 
         for k,v in kwargs.items():
             setattr( self, k, v )
@@ -114,26 +122,19 @@ class U2_Device:
 
             if not gone:
                 info = self.getInfo( self.qui )
-
                 notif_( 1, f"Last qui persisted[ {info['text']} ]" )
-                vibrate( 1, 3 )
-
-                boxArea( self.lastClick, "click" )
-                time.sleep(1)
-                boxArea( self.lastCheckBounds, "check" )
-                time.sleep(1)
-                boxArea( info['bounds'], "qui" )
-                
+                 
                 self.running = False
                 self.qui = None
 
+                vibrate( 1, 3 )
                 return
 
         # Find question
         ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=self.question_timeout )
         
         if not ui or ui == "FAILED":
-            notif_( 1, f"Question e[{'None' if not ui else 'FAILED'}] ")
+            notif_( 1, f"Question e[ {ui} ] ")
             NotifLog.timeout += 1
             return
 
@@ -164,9 +165,9 @@ class U2_Device:
 
         adbClick( bounds )
 
-        # Track time interval of each action
-        elapsed.trackS()
-        notif_( 1, f"Clicked[ {text[:9]} ] [ {elapsed} ]")
+        # Track time self.interval of each action
+        self.elapsed.trackS()
+        notif_( 1, f"Clicked[ {text[:9]} ] [ {self.elapsed} ]")
         
         # Update task values
         self.prev_task = self.task
@@ -183,6 +184,7 @@ class U2_Device:
         
         if not cui or cui == "FAILED":
             notif_(1, f"[ {self.task2} ] timedout")
+            
             NotifLog.timeout += 1
             return
 
@@ -204,11 +206,11 @@ class U2_Device:
         adbClick( bounds )
         
         # Track cycle duration
-        interval.trackS()
+        self.interval.trackS()
 
-        # Log average time interval per cycle
-        NotifLog.total_duration = interval.avgTime
-        notif_( 1, f"Clicked[ {self.check[:9]} ] [ {interval} ]")
+        # Log average time self.interval per cycle
+        NotifLog.total_duration = self.interval.avgTime
+        notif_( 1, f"Clicked[ {self.check[:9]} ] [ {self.interval} ]")
 
         # Update task values
         self.prev_task = self.task
@@ -227,8 +229,6 @@ class U2_Device:
             NotifLog.recheck += 1
             notif_(1, f"Check failed:{self.check[:9]}")
 
-            boxArea( self.lastClick, f"task{self.prev_task}", False )
-
             self.task = self.prev_task
             return
 
@@ -236,7 +236,7 @@ class U2_Device:
             printf("Check element failed")
             return
 
-        elapsed.trackS()
+        self.elapsed.trackS()
 
         if self.prev_task == 1:
             # Use check ui as waitGone ui
@@ -244,29 +244,44 @@ class U2_Device:
             # for new question ui since multiple
             # question ui exists at the instant search action is on 
             self.qui = ui
-
-        elif self.prev_task == 2:
-            info = self.getInfo( ui )
-            self.lastCheckBounds = info['bounds']
         
-        if interval.avgTime.seconds > self.restart_time:           
-            # Restart app if intervals take longer than usual
-            self.restartTarget( 3 )
-            NotifLog.restarts += 1
-            
-            # Reset tracker
-            interval.avgTime.seconds = 0
-            interval.total_duration = 0
-            interval.time_stamps = 0
-
         self.task = self.next_task
-        notif_( 1, f"Checked[ {self.check[:9]} ] [ {elapsed} ]")
+        notif_( 1, f"Checked[ {self.check[:9]} ] [ {self.elapsed} ]")
+
+        # Multi Bot version
+        if self.multi_bot:
+            self.running = False
 
 
-    def restartTarget( self, instance_number ):
+    def intervalExceed( self ) -> bool:
+        # Check if average interval takes longer time than usual
+        if self.interval.avgTime.seconds > self.restart_time:
+            return True
+        return False
+
+
+    def restartTarget( self, instance_number = 0, noUi:tuple = None, click=True ):
         # Force stop and reopen target app
+        # when interval time exceeds average time
         os.system( "adb shell am force-stop com.facebook.orca; sleep 0.4; adb shell am start -n com.facebook.orca/.auth.StartScreenActivity &> /dev/null" )
         time.sleep( 1.5 )
+
+        # Reset tracker
+        self.interval.avgTime.set_seconds( 0 )
+        
+        self.interval.total_duration = 0
+        self.interval.time_stamps = 0
+
+        # Log
+        NotifLog.restarts += 1
+
+        if not click:
+            # Used for multi bot
+            return
+
+        if noUi:
+            adbClickNoUi( noUi )
+            return
 
         ui = None
         while ui is None:
@@ -279,18 +294,7 @@ class U2_Device:
         info = self.getInfo( ui )
         bounds = info['bounds']
 
-        adbClick( bounds )       
-        return
-
-
-    def key_interrupt_listener( self ):
-        # Reads from pipe controlled by termux-notification
-        while True:
-            try:
-                time.sleep(10)
-            except KeyboardInterrupt:
-                self.running = False
-                break
+        adbClick( bounds )
 
 
     def mainloop( self ): 
@@ -308,6 +312,13 @@ class U2_Device:
                     case tasktype.check:
                         self.doCheck()
 
+                        # Restart app if self.interval take longer than usual
+                        if not self.multi_bot and self.intervalExceed():
+                            self.restartTarget( noUi = self.button_instance )
+
+                            print(f"{self.tag} : {self.interval.avgTime}" )
+
+
             except Exception as e:
 
                 #tb = traceback.extract_tb(e.__traceback__)[-1]
@@ -316,32 +327,38 @@ class U2_Device:
                 
                 traceback.print_exception(type(e), e, e.__traceback__, file=sys.stdout)
                 #vibrate(1, 3)
+            except KeyboardInterrupt:
+                break
+
+
+    def timeRestricted( self ):
+        # Checks if runs at vslid time
+        stime = Stime()
+
+        if stime.in_range( self.start, self.end ):
+            return True
+        
+        return False
 
 
     def run( self ):
         # Only run app on allowed time frame
-        if not self.ignoretime:
-            stime = Stime() 
+        if not self.ignoretime and self.timeRestricted():
             
-            if stime.in_range( self.start, self.end ):
-                w = f"'App prohibited running between\n[ {self.start} ] - [ {self.end}] '"
-                print(stime)
-                print(w) 
-                notif_( 0, w )
-
-                vibrate( 1, 1 )
-                return
+            w = f'App prohibited running between'
+            w1 = f'[ {self.start} ] - [ {self.end}] '
+            
+            notif_( 0, w )
+            notif_( 0, w1 )
+            
+            vibrate( 1, 1 ) 
+            return
 
         # Start adb and pipes
         start_adb_shell_pipes()
 
         # start main program
-        self.thread = Thread(target=self.mainloop, daemon=True)
-        self.thread.start()
-
-        print(f"running[ {self.running} ]")
-        self.key_interrupt_listener()
-         
+        self.mainloop()
         print("Closing app")
 
 if __name__=='__main__':

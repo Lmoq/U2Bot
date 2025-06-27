@@ -114,36 +114,35 @@ class Stime:
 
     def __lt__( self, stime ):
         if not isinstance( stime, Stime ):
-            return none
+            return None
 
         return self.seconds < stime.seconds
 
     
     def __gt__( self, stime ):
         if not isinstance( stime, Stime ):
-            return none
+            return None
 
         return self.seconds > stime.seconds
 
  
     def __le__( self, stime ):
         if not isinstance( stime, Stime ):
-            return none
+            return None
 
         return self.seconds <= stime.seconds
 
 
     def __ge__( self, stime ):
         if not isinstance( stime, Stime ):
-            return none
+            return None
 
-        print(f"comapring {self.seconds} to {stime.seconds}")
         return self.seconds >= stime.seconds
     
 
     def __eq__( self, stime ):
         if not isinstance( stime, Stime ):
-            return none
+            return None
 
         return self.seconds == stime.seconds
     
