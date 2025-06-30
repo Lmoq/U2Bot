@@ -3,7 +3,9 @@ import uiautomator2 as u2
 from threading import Thread
 
 from U2 import U2_Device as U2
-from U2.actions import adbClickNoUi
+from U2.U2 import tasktype
+from U2.notif import Stime
+from U2.actions import adbClickNoUi, vibrate
 from U2.U2 import wtype
 from U2.debug.log import NotifLog, notiflog
 from U2.debug import notif_
@@ -21,12 +23,6 @@ from mmcb.main import MMCB
 from dmcb.main import DMCB
 
 device = u2.connect()
-
-# Initialize U2 Bots
-L1 : U2 = CECB
-L2 : U2 = FBMB
-L3 : U2 = MMCB
-L4 : U2 = DMCB
 
 running = True
 BotList = []
@@ -57,7 +53,7 @@ def updatenotif( BotList ):
     for bot in BotList:
 
         timestr = time.strftime( "%H:%M:%S", time.localtime( bot.next ) )
-        strings.append( f"[ {bot.name} ] [ {timestr} ]" )
+        strings.append( f"[ {bot.name} ] [ {timestr} ] [ {bot.bot.points:.2f} ]" )
         
         # Replace notiflog list
         notiflog.list = strings
@@ -106,14 +102,42 @@ def switchInstance( num = 0, noUi:tuple = None, pressBack = True ):
 def altRun():
     global running, device, BotList
     
-    # L1 / L2
-    L1.task = 1
-    L2.task = 2
-    L3.task = 1
-    L4.task = 1
+    # Bots
+    CECB.task = 1
+    CECB.restricted = False
 
+    CECB.points = 52.50
+    CECB.points_limit = 100
+    CECB.points_increment = 0.50
+    # ---------------------
+
+    FBMB.task = 1
+    FBMB.restricted = False
+
+    FBMB.points = 25.90
+    FBMB.points_limit = 35
+    FBMB.points_increment = 0.10
+    # ---------------------
+    
+    MMCB.task = 1
+    MMCB.restricted = False
+        
+    MMCB.points = 43.5
+    MMCB.points_limit = 43.55
+    MMCB.points_increment = 0.05
+    # ---------------------
+    
+    DMCB.task = 1
+    DMCB.restricted = True
+
+    # Random rate will not calc points
+    DMCB.points_increment = 0
+    # ---------------------
+    
+
+    # Handlers
     # Bot 1 --------------
-    B1 = Bot_Handler( L1 )
+    B1 = Bot_Handler( CECB )
 
     B1.task1 = 368
     B1.task2 = 369
@@ -121,7 +145,7 @@ def altRun():
     # --------------------
 
     # Bot 2 --------------
-    B2 = Bot_Handler( L2 )
+    B2 = Bot_Handler( FBMB )
     
     B2.task1 = 258
     B2.task2 = 259
@@ -129,7 +153,7 @@ def altRun():
     # --------------------
 
     # Bot 3 --------------
-    B3 = Bot_Handler( L3 )
+    B3 = Bot_Handler( MMCB )
     
     B3.task1 = 139
     B3.task2 = 139
@@ -137,18 +161,19 @@ def altRun():
     # --------------------
     
     # Bot 4 --------------
-    B4 = Bot_Handler( L4 )
+    B4 = Bot_Handler( DMCB )
     
     B4.task1 = 252
     B4.task2 = 302
     B4.name = "🌟DMCB🌟"
     # --------------------
 
-    tmp = [ B2, B4, B3 ]
+    tmp = [ B1, B2, B3, B4 ]
     BotList = []
 
+
     for bot in tmp:
-        # Performs a time restriction check
+        # Include only non restricted Bots 
         if bot.bot.timeRestricted() or bot.bot.restricted:
             continue
 
@@ -158,12 +183,14 @@ def altRun():
         # Set properties for multi bot
         bot.bot.tag = bot.name
         bot.bot.multi_bot = True
+        bot.bot.task_points_add = tasktype.t2
 
         # Add to botlist if not time restricted
         BotList.append( bot )
 
-    if BotList: Bot = BotList[2]
+    if BotList: Bot = BotList[0]
     del tmp
+
 
     while BotList:
         try:
@@ -181,31 +208,36 @@ def altRun():
 
             allowance = 5
             Bot.next = time.time() + ( interval - allowance )
-    
+
             # Choose the smallest time wait if all Bot had task and time wait done
             if all( b.next for b in BotList ):
-                BotList = sorted( BotList, key=lambda b : b.next )
                 
-                if BotList[0].bot.timeRestricted():
-                    # Remove bot from list if runs on restricted time
-                    BotList[0].bot.restricted = True
+                BotList = sorted( BotList, key=lambda b : b.next )
+                next_bot = BotList[0]
+
+                # Check next bot time restriction
+                if next_bot.bot.restricted:
+                    # Remove bot from list
                     BotList.pop( 0 )
+                    next_bot = BotList[0]
 
-                    if not BotList: break
-
+                    vibrate( 2, 1 )
+                    if not BotList: break 
+ 
                 # Check interval limit
                 restarted = False
+                
                 if not Bot.bot.restricted and Bot.bot.intervalExceed():
-
                     Bot.bot.restartTarget(
                         noUi = Bot.bot.button_instance,
-                        click = False if Bot != BotList[0] else True
+                        click = False if Bot != next_bot else True
                     )
                     restarted = True
+                    Bot.bot.interval.reset_avg()
 
                 # Prevents calling switch instance if Bot reference did not change
-                if Bot != BotList[0]:
-                    Bot = BotList[0] 
+                if Bot != next_bot:
+                    Bot = next_bot 
                      
                     # Switch bot ui focus 
                     switchInstance( 

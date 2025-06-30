@@ -57,6 +57,13 @@ class U2_Device:
         self.check = self.task2
         self.check_timer = time.time()
 
+        # Track points
+        self.points = 0
+        self.task_points_add = 0
+
+        self.points_increment = 0
+        self.points_limit = 99
+
         # Last click and check ui bounds
         self.lastClick = {}
         self.lastCheckBounds = {}
@@ -244,13 +251,29 @@ class U2_Device:
             # for new question ui since multiple
             # question ui exists at the instant search action is on 
             self.qui = ui
-        
+
+        # Increment points at specific task cycle
+        if self.prev_task == self.task_points_add:
+            self.points += self.points_increment
+
         self.task = self.next_task
         notif_( 1, f"Checked[ {self.check[:9]} ] [ {self.elapsed} ]")
 
-        # Multi Bot version
+        # Avoid self checks with early return for multi bot version
         if self.multi_bot:
             self.running = False
+            return
+
+        # Restart app if self.interval take longer than usual
+        if self.intervalExceed():
+            self.restartTarget( noUi = self.button_instance )
+
+
+    def pointsReachedLimit( self ):
+        if self.points >= self.points_limit:
+            return True
+
+        return False
 
 
     def intervalExceed( self ) -> bool:
@@ -267,11 +290,8 @@ class U2_Device:
         time.sleep( 1.5 )
 
         # Reset tracker
-        self.interval.avgTime.set_seconds( 0 )
+        self.interval.reset_avg()
         
-        self.interval.total_duration = 0
-        self.interval.time_stamps = 0
-
         # Log
         NotifLog.restarts += 1
 
@@ -312,12 +332,10 @@ class U2_Device:
                     case tasktype.check:
                         self.doCheck()
 
-                        # Restart app if self.interval take longer than usual
-                        if not self.multi_bot and self.intervalExceed():
-                            self.restartTarget( noUi = self.button_instance )
-
-                            print(f"{self.tag} : {self.interval.avgTime}" )
-
+                # Restriction checks
+                if self.pointsReachedLimit() or self.timeRestricted(): 
+                    self.restricted = True
+                    break
 
             except Exception as e:
 

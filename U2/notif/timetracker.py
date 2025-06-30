@@ -57,7 +57,7 @@ class Tracker( Time ):
         self.longL = []
 
         # Sum of every elapsed time calculated
-        self.total_interval = 0
+        self.total_intervals = 0
         self.track_calls = 0
 
         # Minimum interval required to track
@@ -77,7 +77,7 @@ class Tracker( Time ):
 
             # Set a minimum interval to prevent messing with average intervak
             if interval > self.min_interval:
-                self.total_interval += interval
+                self.total_intervals += interval
                 
                 self.track_calls += 1
                 self.calc_avg()
@@ -86,8 +86,16 @@ class Tracker( Time ):
             del t[0]
 
 
+    def reset_avg( self ):
+        # Reset recorded avg time
+        self.avgTime.set_seconds( 0 )
+
+        self.total_intervals = 0
+        self.track_calls = 0
+
+
     def calc_avg( self ):
-        self.avgTime.set_seconds( self.total_interval // self.track_calls ) if self.track_calls else None
+        self.avgTime.set_seconds( self.total_intervals // self.track_calls ) if self.track_calls else None
 
 
 if __name__=='__main__':
