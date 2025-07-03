@@ -26,6 +26,8 @@ class tasktype:
 
 class U2_Device:
 
+    sig_term = False
+
     def __init__( self, **kwargs ):
         
         self.tag = ""
@@ -254,7 +256,7 @@ class U2_Device:
 
         # Increment points at specific task cycle
         if self.prev_task == self.task_points_add:
-            self.points += self.points_increment
+            self.incrementPoints()
 
         self.task = self.next_task
         notif_( 1, f"Checked[ {self.check[:9]} ] [ {self.elapsed} ]")
@@ -267,6 +269,11 @@ class U2_Device:
         # Restart app if self.interval take longer than usual
         if self.intervalExceed():
             self.restartTarget( noUi = self.button_instance )
+
+
+    def incrementPoints( self ):
+        # Update points
+        self.points = round( self.points + self.points_increment, 2 )
 
 
     def pointsReachedLimit( self ):
@@ -346,6 +353,7 @@ class U2_Device:
                 traceback.print_exception(type(e), e, e.__traceback__, file=sys.stdout)
                 #vibrate(1, 3)
             except KeyboardInterrupt:
+                U2_Device.sig_term = True
                 break
 
 

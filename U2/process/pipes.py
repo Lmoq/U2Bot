@@ -17,9 +17,20 @@ def start_adb_shell_pipes():
 
         print("Starting pipes\n")
 
-        p = Path(__file__).parent.parent
-        os.system( p / "start_shell.sh")
-        
+        subprocess.Popen(
+            "tail -f /dev/null > ~/pipes/adbpipe",
+            shell=True,
+            start_new_session=True
+        )
+
+        subprocess.Popen(
+            "adb shell < ~/pipes/adbpipe",
+            shell=True,
+            start_new_session=True
+        )
+        #p = Path(__file__).parent.parent
+        #os.system( p / "start_shell.sh")
+        #
         result = subprocess.run( cm, stdout=subprocess.PIPE ).stdout.decode()
         print(result)
     else:

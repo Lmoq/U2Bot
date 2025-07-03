@@ -42,7 +42,6 @@ def viewElement( selector, log=False ):
         
         except Exception as e:
             print(f"TextWidget {selector}:Error")
-            
 
     if log:
         # Draw rectangle of positions of every element found
