@@ -6,9 +6,8 @@ from .process import start_adb_shell_pipes
 from .debug import boxArea
 from .actions import adbClick, adbClickNoUi, vibrate, buttonInstance
 
-from threading import Thread
 from .notif import notif, Tracker, Stime
-from .debug import notif_
+from .debug import notif_, debugLog
 from .debug.log import NotifLog
 
 
@@ -16,12 +15,13 @@ class wtype:
     clickable = "android.widget.TextView"
     text = "android.view.ViewGroup"
     button = "android.widget.Button"
+    edit = "android.widget.EditText"
 
 class tasktype:
     t1 = 1
     t2 = 2
-    check = 3
-    wait = 4
+    check = 3000
+    wait = 4000
 
 
 class U2_Device:
@@ -31,7 +31,9 @@ class U2_Device:
     def __init__( self, **kwargs ):
         
         self.tag = ""
-        self.d = u2.connect()
+        self.str = "Name not set"
+
+        self.d = None # : u2._Device = u2.connect()
         self.task = tasktype.t1
 
         self.prev_task = 1
@@ -80,8 +82,9 @@ class U2_Device:
         self.button_instance = buttonInstance.i3
         
         # Wait gone UiObject
-        self.qui = None
-        
+        self.waitGoneUi = None
+        self.waitGoneText = ''
+
         # Bool
         self.running = True
         self.multi_bot = False
@@ -91,6 +94,10 @@ class U2_Device:
 
         for k,v in kwargs.items():
             setattr( self, k, v )
+
+
+    def __repr__( self ):
+        return self.str
 
 
     def waitElement( self, selector, timeout ):
@@ -103,7 +110,20 @@ class U2_Device:
             else None
         
         except Exception as e:
-            print(f"waitException : {e}")
+            traceback.print_exception(type(e), e, e.__traceback__, file=sys.stdout)
+            return 'FAILED'
+
+
+    def waitSiblingElement( self, base={}, sibling={}, timeout=0 ):
+        try:
+            ui = self.d( **base ).sibling( **sibling )
+
+            return ui \
+            if ui.wait( timeout=timeout ) \
+            else None
+
+        except Exception as e:
+            traceback.print_exception(type(e), e, e.__traceback__, file=sys.stdout)
             return 'FAILED'
 
 
@@ -126,25 +146,20 @@ class U2_Device:
 
     def doTask1( self ):
         # Search task1 elements
-        if self.qui != None:                
-            gone = self.qui.wait_gone( timeout=600 )
 
-            if not gone:
-                info = self.getInfo( self.qui )
-                notif_( 1, f"Last qui persisted[ {info['text']} ]" )
-                 
-                self.running = False
-                self.qui = None
-
-                vibrate( 1, 3 )
-                return
-
-        # Find question
-        ui = self.waitElement( {"textContains" : self.question, "className" : wtype.text}, timeout=self.question_timeout )
+        # Use a broader selector to safely match specific element
+        # incase more than one element gets caught in the same selector
+        question_selector = {"textContains" : self.question, "className" : wtype.text }
+        emoji_selector = {"description" : "Add custom reaction", "className" : wtype.button }
         
-        if not ui or ui == "FAILED":
-            notif_( 1, f"Question e[ {ui} ] ")
+        ui = self.waitSiblingElement( base = emoji_selector, sibling = question_selector, timeout = self.question_timeout )
+        
+        if not ui:
+            debugLog( f"{self.tag} question timedout" )
             NotifLog.timeout += 1
+            return
+
+        elif ui == "FAILED":
             return
 
         info = self.getInfo( ui )
@@ -156,9 +171,7 @@ class U2_Device:
         # Question found
         text = self.task1[info['text']]
         
-        start = time.time()
-        ui = self.waitElement( {"text" : text, "className" : wtype.clickable}, timeout=6 )
-        
+        ui = self.waitElement( {"text" : text, "className" : wtype.clickable}, timeout=6 ) 
         if not ui or ui == "FAILED":
             notif_( 1, f"{text} not found")
             return
@@ -169,7 +182,8 @@ class U2_Device:
         self.check = info['text']
 
         if self.check != text:
-            notif_(1, f"Diff text[ {self.check} ]")   
+            notif_(1, f"Diff text[ {self.check} ]")
+            debugLog( f"[self.name] Diff text ans[{self.check}]" )
             return
 
         adbClick( bounds )
@@ -177,7 +191,7 @@ class U2_Device:
         # Track time self.interval of each action
         self.elapsed.trackS()
         notif_( 1, f"Clicked[ {text[:9]} ] [ {self.elapsed} ]")
-        
+
         # Update task values
         self.prev_task = self.task
         self.next_task = tasktype.t2
@@ -204,6 +218,7 @@ class U2_Device:
 
         if self.check != self.task2:
             notif_(1, f"Diff text[ {self.check} ]") 
+            debugLog( f"[self.name] T2 Diff text[{self.check}]") 
             cui = None
             return
 
@@ -233,26 +248,22 @@ class U2_Device:
     def doCheck( self ):
         # Wait for ui to exists before switching task
         ui = self.waitElement( {"text" : self.check, "className" : wtype.text}, timeout=3 )
-         
+
         if ui == None:
             NotifLog.recheck += 1
             notif_(1, f"Check failed:{self.check[:9]}")
+
+            log = f"[{self.name}] check timedout [{self.check}]"
+            debugLog( log )
+            boxArea( name = log, overlap=False )
 
             self.task = self.prev_task
             return
 
         elif ui == "FAILED":
-            printf("Check element failed")
             return
 
         self.elapsed.trackS()
-
-        if self.prev_task == 1:
-            # Use check ui as waitGone ui
-            # to be used as signal to look
-            # for new question ui since multiple
-            # question ui exists at the instant search action is on 
-            self.qui = ui
 
         # Increment points at specific task cycle
         if self.prev_task == self.task_points_add:
@@ -290,11 +301,21 @@ class U2_Device:
         return False
 
 
+    def timeRestricted( self ):
+        # Checks if runs at valid time
+        if self.ignoretime or ( not self.start or not self.end ):
+            return False
+        stime = Stime()
+
+        return stime.in_range( self.start, self.end )
+
+
     def restartTarget( self, instance_number = 0, noUi:tuple = None, click=True ):
         # Force stop and reopen target app
         # when interval time exceeds average time
-        os.system( "adb shell am force-stop com.facebook.orca; sleep 0.4; adb shell am start -n com.facebook.orca/.auth.StartScreenActivity &> /dev/null" )
-        time.sleep( 1.5 )
+        os.system( "adb shell am force-stop com.facebook.orca; sleep 0.3; adb shell am start -n com.facebook.orca/.auth.StartScreenActivity &> /dev/null" )
+        self.d.wait_activity( ".auth.StartScreenActivity" )
+        time.sleep(0.4)
 
         # Reset tracker
         self.interval.reset_avg()
@@ -325,7 +346,7 @@ class U2_Device:
 
 
     def mainloop( self ): 
-        while self.running:
+        while self.running and not U2_Device.sig_term:
             #if d.device_info.get('package') != 'com.facebook.orca':
                 #continue
             try:
@@ -357,19 +378,9 @@ class U2_Device:
                 break
 
 
-    def timeRestricted( self ):
-        # Checks if runs at vslid time
-        stime = Stime()
-
-        if stime.in_range( self.start, self.end ):
-            return True
-        
-        return False
-
-
     def run( self ):
         # Only run app on allowed time frame
-        if not self.ignoretime and self.timeRestricted():
+        if self.timeRestricted():
             
             w = f'App prohibited running between'
             w1 = f'[ {self.start} ] - [ {self.end}] '
@@ -388,6 +399,4 @@ class U2_Device:
         print("Closing app")
 
 if __name__=='__main__':
-    u2 = u2_device()
-    u2.task = 1
-    u2.run()
+    pass

@@ -1,5 +1,5 @@
 from ..notif import notif, getHour, getHourSec
-import os
+import os, logging
 
 
 class NotifLog:
@@ -45,6 +45,17 @@ def notif_( timeStamp, log ):
 
     cm = f'''echo 'cmd notification post -S inbox {notiflog} -t "{NotifLog.title}" notif logs &> /dev/null' > ~/pipes/adbpipe'''
     os.system(cm)
+
+
+logging.basicConfig(
+    filename = 'out.log',
+    level = logging.INFO,
+    datefmt = "%Y-%m-%d %H:%M:%S",
+    format = "%(asctime)s : %(message)s"
+)
+
+def debugLog( message ):
+    logging.info( message )
 
 if __name__=='__main__':
     pass

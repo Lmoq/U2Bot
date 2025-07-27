@@ -1,23 +1,26 @@
 import cv2 as cv
-import os, time
+import os, time, re
 
 count = 0
 # Ensure adbpipe and shell is running
-def boxArea( coo:dict, name:str="snip", overlap=True ):
+def boxArea( coo:dict=None, name:str="snip", overlap=True ):
     global count    
     # coo = ui.info['bounds']
     if not overlap:
         name = f'{count:02d}-{name}'
         count += 1
 
-    path = f"/storage/emulated/0/termux_dump/{name}.png"
+    # Format string to a valid file name
+    replaced_spaces = name.replace( ' ','_' )
+    fixed_name = re.sub(r'[^a-zA-Z0-9_\-\[\]\s]','', replaced_spaces )
+
+    path = f'/storage/emulated/0/termux_dump/{fixed_name}.png'
     
     os.system(f"echo screencap {path} > ~/pipes/adbpipe")
-    time.sleep(0.8)
-
-    img = cv.imread( path, 1 )
 
     if coo is not None:
+        time.sleep(0.8)
+        img = cv.imread( path, 1 )
 
         tl = coo['left'], coo['top']
         br = coo['right'], coo['bottom']
@@ -28,12 +31,7 @@ def boxArea( coo:dict, name:str="snip", overlap=True ):
             lineType = cv.LINE_4,
             thickness = 3
         )
-    cv.imwrite( path, img )
+        cv.imwrite( path, img )
 
 if __name__=='__main__':
-    import time
-    time.sleep(2)
-    coo = {'bottom': 1474, 'left': 586, 'right': 694, 'top': 1384} 
-    boxArea(coo, 1)
-
-
+    pass

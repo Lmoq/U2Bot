@@ -9,19 +9,19 @@ class types:
     button = "android.widget.Button"
 
 
-def dump():
+def dump( sleep=2 ):
     # Dump ui heirarchy to xml file
-    time.sleep(2)
+    time.sleep( sleep )
     d = u2.connect()
     
     path = "/storage/emulated/0/outmess.xml"
 
     with open(path, 'w', encoding='utf-8') as f:
-        f.write( d.dump_hierarchy(pretty=False) )
+        f.write( d.dump_hierarchy(compressed = False) )
 
 
-def viewElement( selector, log=False ):
-    time.sleep(2)
+def viewElement( selector, log=False, sleep=2 ):
+    time.sleep( sleep )
     d = u2.connect()
 
     path = "/storage/emulated/0/termux_dump"
@@ -30,18 +30,21 @@ def viewElement( selector, log=False ):
 
     found = {}
     
-    el = d(**selector)          
+    el = d(**selector)
+
     if el.exists:
         try:
             info = el.info
 
-            found[f"{info['text'].split('\n')[0]}"] = info
+            text = info['text']
+            if text:
+                found[f"{text.split('\n')[0]}"] = info
 
             shortName = info['className'].split('.')[-1]
-            print(f"{shortName} | {repr(info['text'])}\nBounds | {info['bounds']}\n")
+            print(f"{shortName} | {repr(text)}\nBounds | {info['bounds']}\n")
         
         except Exception as e:
-            print(f"TextWidget {selector}:Error")
+            print(f"TextWidget {selector}:{e}")
 
     if log:
         # Draw rectangle of positions of every element found
@@ -70,9 +73,9 @@ def viewElement( selector, log=False ):
                 cv.imwrite( f"{path}/{name}.png", img_copy )    
     os.system("adb shell cmd notification post -S bigtext Done Done Done &> /dev/null")
 
-def viewElements( _type, _range=(0,20), log=False, getcenter=False ):
+def viewElements( _type, _range=(0,20), log=False, getcenter=False, sleep=2 ):
     # Dump all specified widget type
-    time.sleep(2)
+    time.sleep( sleep )
     d = u2.connect()
 
     path = "/storage/emulated/0/termux_dump"
@@ -139,5 +142,4 @@ def viewElements( _type, _range=(0,20), log=False, getcenter=False ):
     os.system("adb shell cmd notification post -S bigtext Done Done Done &> /dev/null")
 
 if __name__=='__main__':
-    dump()
     pass

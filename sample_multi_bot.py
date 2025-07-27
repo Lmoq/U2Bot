@@ -1,11 +1,12 @@
 import time, sys, os, json
 import uiautomator2 as u2
 from threading import Thread
+from pprint import pp
 
 from U2 import U2_Device as U2
 from U2.U2 import tasktype
 from U2.notif import Stime
-from U2.actions import adbClickNoUi, vibrate, buttonInstance
+from U2.actions import adbClickNoUi, vibrate, buttonInstance, switch_keyboard
 
 from U2.U2 import wtype
 from U2.debug.log import NotifLog, notiflog
@@ -18,10 +19,13 @@ path = Path(__file__).resolve().parent.parent
 
 sys.path.append( str(path) )
 
+# U2 bots
 from cecb.main import CECB
 from fbmb.main import FBMB
 from mmcb.main import MMCB
 from dmcb.main import DMCB
+from aems.main import AEMS
+from ecnl.main import ECNL
 
 device = u2.connect()
 
@@ -51,52 +55,80 @@ class Bot_Handler:
         return self.name
 
 
-def getJsonInfo( botList, botJson ):
-    # Extract runtime info from bots
-    key_json = {
+def extractJsonData( bot_list, out_json ):
+    # Save Bot attributes to outjson
+    base_json = {
         "task" : 0.0,
+
         "points" : 0.0,
-        "points_limit" : (1,2),
+        "points_limit" : 0,
+        
+        "points_increment" : (0,1),
+
+        "start" : "",
+        "end" : "",
         "restricted" : False,
     }
-    for b in botList:
+    for b in bot_list:
         key = b.key_name
         
         # Fill dict value of unassigned key
-        if not key in botJson:
-            botJson[ key ] = {}
+        if not key in out_json:
+            out_json[ key ] = {}
             
-        contents = botJson[ key ]
-        contents |= key_json
+        contents = out_json[ key ]
+        contents |= base_json
 
-        # Update
+        # Replace Stime object as string to save as json key
+        if isinstance ( b.bot.start, Stime ):
+            b.bot.start = b.bot.start.str
+
+        if isinstance ( b.bot.end, Stime ):
+            b.bot.end = b.bot.end.str
+
+        # Modify each key inside outjson 
+        # with its real values from BotList
         for k in contents.keys():
             contents[ k ] = b.bot.__dict__[ k ]
 
 
-def saveJson( botList ):
+def saveJson( bot_list ):
     # Save updated data base
     global BotJson
 
-    # Use dict.update so keys stays in place
-    getJsonInfo( botList, BotJson ) 
+    # Retrieve and set json data from botlist to BotJson
+    extractJsonData( bot_list, BotJson ) 
     with open( 'data.json', 'w' ) as f:
         json.dump( BotJson, f, indent=4 )
 
-    print( "\n", BotJson )
+    pp( BotJson )
 
 
 def loadJson( BotList ):
-    # Load data base
+    # Load data base to BotJson
     global BotJson
 
     if not os.path.exists( 'data.json' ):
         # Fill data base contents
         saveJson( BotList )
         print( 'Created data.json' )
+
     else:
         with open( 'data.json', 'r' ) as f:
             BotJson = json.load( f )
+
+            compare_json = {}
+            extractJsonData( BotList, compare_json )
+
+            # Get difference
+            diff = set( BotJson.keys() ) ^ set( compare_json.keys() )
+
+            if diff:
+                # Update BotJson with new keys from compare_json
+                compare_json |= BotJson
+                # Then update those keys with right values from botjson
+                BotJson |= compare_json
+
         print( 'Existing data loaded' )
 
 
@@ -122,10 +154,12 @@ def switchInstance( num = 0, noUi:tuple = None, pressBack = True ):
     if pressBack: os.system( "echo 'input keyevent 4' > ~/pipes/adbpipe" )
     time.sleep(0.7)
 
+    # Direct click with xy tuple
     if noUi:
         adbClickNoUi( noUi )
         return
 
+    # Click with ui selector search
     ui = None
     while ui is None:
         try:
@@ -145,31 +179,12 @@ def switchInstance( num = 0, noUi:tuple = None, pressBack = True ):
             continue
 
     bounds = info['bounds']
-    adbClick( bounds )   
+    adbClick( bounds )
 
 
 def altRun():
     global running, device, BotList, BotJson, BotDis
     
-    # Bots classes 
-    CECB.points_increment = 0.50 
-    CECB.points_limit = 100 
-    # ---------------------
-
-    FBMB.points_increment = 0.10
-    FBMB.points_limit = 35 
-    # ---------------------
-    
-    MMCB.points_increment = 0.05 
-    MMCB.points_limit = 50
-    # ---------------------
-    
-    # Random rate will not calc points
-    DMCB.points_increment = 0
-    DMCB.points_limit = 50
-    # ---------------------
-    
-
     # Handlers
     # Bot 1 --------------
     B1 = Bot_Handler( CECB )
@@ -190,30 +205,47 @@ def altRun():
     # --------------------
 
     # Bot 3 --------------
-    B3 = Bot_Handler( MMCB )
+    B3 = Bot_Handler( DMCB )
     
-    B3.task1 = 139
-    B3.task2 = 139
-    B3.name = "💫MMCB💫"
-    B3.key_name = "MMCB"
+    B3.task1 = 252
+    B3.task2 = 302
+    B3.name = "🌟DMCB🌟"
+    B3.key_name = "DMCB"
     # --------------------
     
     # Bot 4 --------------
-    B4 = Bot_Handler( DMCB )
+    B4 = Bot_Handler( MMCB )
     
-    B4.task1 = 252
-    B4.task2 = 302
-    B4.name = "🌟DMCB🌟"
-    B4.key_name = "DMCB"
+    B4.task1 = 139
+    B4.task2 = 139
+    B4.name = "💫MMCB💫"
+    B4.key_name = "MMCB"
     # --------------------
 
-    tmp = [ B1, B2, B4 ]
+    B5 = Bot_Handler( AEMS )
+    
+    B5.task1 = 55
+    B5.task2 = 55
+    B5.name = "💙AEMS💙"
+    B5.key_name = "AEMS"
+    # --------------------
 
-    tmp[0].bot.button_instance = buttonInstance.i3
-    tmp[1].bot.button_instance = buttonInstance.i4
-    tmp[2].bot.button_instance = buttonInstance.i5
+    B6 = Bot_Handler( ECNL )
+    
+    B6.task1 = 40
+    B6.task2 = 7200
+    B6.name = "✨ECNL✨"
+    B6.key_name = "ECNL"
+    # --------------------
+    tmp = [ B6, B1 ]
 
-    BotList = []
+    # Set designated button instances based on the order U2 Bots on tmp list
+    button_instances = [ getattr( buttonInstance, attr ) \
+                         for attr in dir( buttonInstance ) \
+                         if not attr.startswith('__') ]
+    
+    zip_ = zip( tmp, button_instances )
+    [ setattr( bot.bot, 'button_instance', tup ) for bot,tup in zip_ ]
 
     # Load data base
     loadJson( tmp )
@@ -225,16 +257,21 @@ def altRun():
 
     # Setup bots to run
     for bot in tmp:
-        # Include only non restricted Bots 
-        if bot.bot.timeRestricted() or bot.bot.restricted:
+        # Lift restrictions
+        bot.bot.restricted = bot.bot.timeRestricted() or bot.bot.pointsReachedLimit()
+        
+        # Include only non restricted bots to run
+        if bot.bot.restricted:
+            BotDis.append( bot )
             continue
 
         # Share single device
-        bot.d = device
+        bot.bot.d = device
 
-        # Set universal properties for multi bot
         bot.bot.tag = bot.name
+        bot.bot.name = bot.key_name
         
+        # Set universal properties for multi bot
         bot.bot.multi_bot = True
         bot.bot.task_points_add = tasktype.t1
 
@@ -277,10 +314,12 @@ def altRun():
                     
                     # Move bot from discarded list
                     BotDis.append( BotList.pop( 0 ) )
-                    next_bot = BotList[0]
 
-                    vibrate( 2, 1 )
-                    if not BotList: break 
+                    if not BotList: 
+                        vibrate( 2, 1 )
+                        break 
+
+                    next_bot = BotList[0]
  
                 # Check interval limit
                 restarted = False
@@ -324,10 +363,12 @@ def main():
     start_adb_shell_pipes()
 
     NotifLog.capacity = 7
+
+    switch_keyboard( 'off' )
     altRun()
     
-    #start_adb_shell_pipes()
     notif_( 1, "No bots running" )
+    switch_keyboard( 'on' )
 
     # Save data base
     BotList.extend( BotDis )

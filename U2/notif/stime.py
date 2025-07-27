@@ -23,7 +23,9 @@ class Stime:
         "Sat" : 5,
         "Sun" : 6
     }
+    # Seconds in a week
     max_seconds = 604800
+    # Bounds
     beginning = "Mon 00:00:00"
     end = "Sun 23:59:59"
     
@@ -84,7 +86,7 @@ class Stime:
         if not isinstance( _int, int ):
             return None
 
-        self.seconds = ( self.seconds + _int ) % 604800
+        self.seconds = ( self.seconds + _int ) % Stime.max_seconds
         self.to_str( self.seconds )
         
         return self
@@ -106,45 +108,49 @@ class Stime:
         if not isinstance( _int, int ):
             return None
 
-        self.seconds = ( self.seconds - _int ) % 604800
+        self.seconds = ( self.seconds - _int ) % Stime.max_seconds
         self.to_str( self.seconds )
         
         return self
 
 
     def __lt__( self, stime ):
-        if not isinstance( stime, Stime ):
-            return None
+        if isinstance( stime, stime ):
+            return self.seconds < stime.seconds
 
-        return self.seconds < stime.seconds
+        elif isinstance( stime, str ):
+            return self.seconds < stime( stime ) 
 
     
     def __gt__( self, stime ):
-        if not isinstance( stime, Stime ):
-            return None
+        if isinstance( stime, Stime ):
+            return self.seconds > stime.seconds
 
-        return self.seconds > stime.seconds
+        elif isinstance( stime, str ):
+            return self.seconds > Stime( stime ) 
 
  
     def __le__( self, stime ):
-        if not isinstance( stime, Stime ):
-            return None
+        if isinstance( stime, Stime ):
+            return self.seconds <= stime.seconds
 
-        return self.seconds <= stime.seconds
-
+        elif isinstance( stime, str ):
+            return self.seconds <= Stime( stime ) 
 
     def __ge__( self, stime ):
-        if not isinstance( stime, Stime ):
-            return None
+        if isinstance( stime, Stime ):
+            return self.seconds >= stime.seconds
 
-        return self.seconds >= stime.seconds
-    
+        elif isinstance( stime, str ):
+            return self.seconds >= Stime( stime ) 
+
 
     def __eq__( self, stime ):
-        if not isinstance( stime, Stime ):
-            return None
+        if isinstance( stime, Stime ):
+            return self.seconds == stime.seconds
 
-        return self.seconds == stime.seconds
+        elif isinstance( stime, str ):
+            return self.seconds == Stime( stime ) 
     
 
     def __repr__( self ):
@@ -152,9 +158,20 @@ class Stime:
 
 
     def in_range( self, start, end ):
+        # Verify object type
+        if not isinstance( start, Stime ):
+            start = Stime( start )
+
+        if not isinstance( end, Stime ):
+            end = Stime( end )
+
+
         if self >= start and self <= end:
+            # Bounds doesn't wrap around
             return True
+
         elif start > end:
+            # Comparison when end time wrapped around bounds
             if self >= start or self <= end:
                 return True
         return False

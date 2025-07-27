@@ -99,12 +99,6 @@ class Tracker( Time ):
 
 
 if __name__=='__main__':
-    t = Tracker()
-    t.set_seconds( 216000 )
-
-
-    print( t )
-
     pass
 
 
